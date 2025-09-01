@@ -514,7 +514,7 @@ async function transaction<T>(
   sql: Bun.SQL,
   fn: (tx: TransactionSQL) => Promise<T>,
 ): Promise<T> {
-  using conn = await sql.reserve();
+  const conn = await sql.reserve();
   const tx = <T>(
     strings: TemplateStringsArray,
     ...values: Array<SQLFragment | Array<SQLFragment> | SQLPrimitive>
@@ -542,15 +542,16 @@ async function transaction<T>(
     key?: string,
   ) => list(conn, values, key);
 
-  await conn.unsafe("BEGIN");
-
   try {
+    await conn.unsafe("BEGIN");
     const out = await fn(tx);
     await conn.unsafe("COMMIT");
     return out;
   } catch (e) {
     await conn.unsafe("ROLLBACK");
     throw e;
+  } finally {
+    conn.release();
   }
 }
 
